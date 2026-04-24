@@ -665,11 +665,11 @@ tbody tr:last-child td { border-bottom: none; }
       <div class="auth-errors" id="auth-errors"></div>
       <div class="field">
         <label for="auth-email">E-mail</label>
-        <input class="input" id="auth-email" type="email" placeholder="voce@lifeplan.com" value="juliana.ribeiro@lifeplan.com">
+        <input class="input" id="auth-email" type="email" placeholder="voce@lifeplan.com">
       </div>
       <div class="field">
         <label for="auth-pass">Senha</label>
-        <input class="input" id="auth-pass" type="password" placeholder="••••••••" value="demo1234">
+        <input class="input" id="auth-pass" type="password" placeholder="••••••••">
       </div>
       <div class="row-between">
         <label class="check"><input type="checkbox" checked> Manter conectado</label>
@@ -923,8 +923,8 @@ tbody tr:last-child td { border-bottom: none; }
   // ---- Utilities
   const money = v => 'R$ ' + v.toLocaleString('pt-BR', {maximumFractionDigits:0});
   const initials = n => n.split(' ').slice(0,2).map(s=>s[0]).join('').toUpperCase();
-  const $ = (s,p=document) => p.querySelector(s);
-  const $ = (s,p=document) => Array.from(p.querySelectorAll(s));
+  const $  = (s,p=document) => p.querySelector(s);
+  const $$ = (s,p=document) => Array.from(p.querySelectorAll(s));
 
   // ---- Filter logic
   function getFiltered(source = clients) {
@@ -1045,7 +1045,7 @@ tbody tr:last-child td { border-bottom: none; }
     `;
 
     // Event wiring
-    $('#app .tab').forEach(t=>t.addEventListener('click', ()=>{
+    $$('#app .tab').forEach(t=>t.addEventListener('click', ()=>{
       state.tab = t.dataset.tab;
       state.page = 1; state.filters.status = '';
       renderHeader(); renderPage();
@@ -1241,12 +1241,12 @@ tbody tr:last-child td { border-bottom: none; }
     `;
   }
   function wireTable(list) {
-    $('tbody tr').forEach(tr => tr.addEventListener('click', ()=>{
+    $$('tbody tr').forEach(tr => tr.addEventListener('click', ()=>{
       const id = tr.dataset.id;
       const c = clients.find(x => x.id === id);
       openSidePanel(c);
     }));
-    $('.pag-btn').forEach(b => b.addEventListener('click', ()=>{
+    $$('.pag-btn').forEach(b => b.addEventListener('click', ()=>{
       const p = b.dataset.p;
       const totalPages = Math.max(1, Math.ceil(list.length / state.perPage));
       if (p === 'prev') state.page = Math.max(1, state.page-1);
@@ -1270,7 +1270,7 @@ tbody tr:last-child td { border-bottom: none; }
     return `<div class="chips">${all}${rest}</div>`;
   }
   function wireStatusChips() {
-    $('.chip[data-status]').forEach(c => c.addEventListener('click', ()=>{
+    $$('.chip[data-status]').forEach(c => c.addEventListener('click', ()=>{
       state.filters.status = c.dataset.status;
       state.page = 1; renderPage();
     }));
@@ -1730,7 +1730,7 @@ tbody tr:last-child td { border-bottom: none; }
     $('#side-panel').classList.add('open');
 
     $('#sp-close').addEventListener('click', closeSidePanel);
-    $('#side-panel .sp-tab').forEach(t => t.addEventListener('click', ()=>{
+    $$('#side-panel .sp-tab').forEach(t => t.addEventListener('click', ()=>{
       state.sideTab = t.dataset.spTab;
       renderSidePanel();
     }));
