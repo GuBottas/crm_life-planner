@@ -631,12 +631,57 @@ tbody tr:last-child td { border-bottom: none; }
   .auth-brand { display: none; }
 }
 
+/* ============ EXTRAS ============ */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.notif-panel {
+  position: fixed; top: 57px; right: 16px;
+  width: 360px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); z-index: 100;
+  display: none; max-height: 440px; overflow-y: auto;
+}
+.notif-panel.open { display: block; animation: slideUp .15s ease; }
+.notif-panel-head {
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600;
+}
+.notif-panel-clear { font-size: 11px; color: var(--text-3); background: none; border: none; cursor: pointer; }
+.notif-panel-clear:hover { color: var(--text); }
+.notif-row {
+  display: grid; grid-template-columns: 30px 1fr; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border); align-items: start;
+}
+.notif-row:last-child { border-bottom: none; }
+.notif-row-ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; }
+.notif-row-t { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+.notif-row-s { font-size: 11px; color: var(--text-3); }
+.notif-empty { padding: 24px; text-align: center; color: var(--text-3); font-size: 12px; }
+
+.reneg-popup {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface); border: 1px solid var(--orange);
+  border-radius: var(--radius); padding: 16px 18px;
+  width: 310px; box-shadow: var(--shadow-lg); z-index: 150;
+  display: none; animation: slideUp .3s ease;
+}
+.reneg-popup.show { display: block; }
+.reneg-popup-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.reneg-popup-title { font-size: 13px; font-weight: 600; color: var(--orange); }
+.reneg-popup-close { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 16px; line-height: 1; padding: 0; }
+.reneg-popup-close:hover { color: var(--text); }
+.reneg-popup-item { font-size: 12px; color: var(--text-2); padding: 4px 0; border-bottom: 1px solid var(--border); }
+.reneg-popup-item:last-of-type { border-bottom: none; }
+.reneg-popup-cta { display: block; width: 100%; margin-top: 12px; text-align: center; }
+
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -652,10 +697,10 @@ tbody tr:last-child td { border-bottom: none; }
       <h1 class="auth-title">Sua carteira, <em>em tempo real</em>.</h1>
       <p class="auth-sub">Gestão de leads, follow-ups, clientes e performance em um só painel — sincronizado com ClickUp, sempre atualizado.</p>
     </div>
-    <div class="auth-stats">
-      <div class="auth-stat"><div class="v mono">128</div><div class="l">Clientes na base</div></div>
-      <div class="auth-stat"><div class="v mono">R$ 2,4M</div><div class="l">Prêmio anual</div></div>
-      <div class="auth-stat"><div class="v mono">+38%</div><div class="l">Conversão YoY</div></div>
+    <div class="auth-stats" id="auth-stats-live">
+      <div class="auth-stat"><div class="v mono" id="as-clientes">—</div><div class="l">Clientes na base</div></div>
+      <div class="auth-stat"><div class="v mono" id="as-premio">—</div><div class="l">Prêmio anual est.</div></div>
+      <div class="auth-stat"><div class="v mono" id="as-rec">—</div><div class="l">Recomendados</div></div>
     </div>
   </aside>
   <div class="auth-form-wrap">
@@ -672,7 +717,7 @@ tbody tr:last-child td { border-bottom: none; }
         <input class="input" id="auth-pass" type="password" placeholder="••••••••">
       </div>
       <div class="row-between">
-        <label class="check"><input type="checkbox" checked> Manter conectado</label>
+        <label class="check"><input type="checkbox" id="auth-remember" checked> Manter conectado</label>
         <a href="#" class="link">Esqueci minha senha</a>
       </div>
       <button class="btn btn-primary btn-block" type="submit">Entrar no painel →</button>
@@ -714,15 +759,34 @@ tbody tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
+<!-- Notification panel -->
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-panel-head">
+    <span>Notificações</span>
+    <button class="notif-panel-clear" id="notif-clear">Limpar tudo</button>
+  </div>
+  <div id="notif-list"><div class="notif-empty">Sem notificações pendentes.</div></div>
+</div>
+
+<!-- Renegotiation popup -->
+<div class="reneg-popup" id="reneg-popup">
+  <div class="reneg-popup-head">
+    <span class="reneg-popup-title">⚠️ Renegociações pendentes</span>
+    <button class="reneg-popup-close" id="reneg-close">✕</button>
+  </div>
+  <div id="reneg-popup-body"></div>
+  <button class="btn btn-primary reneg-popup-cta" id="reneg-goto">Ver clientes →</button>
+</div>
+
 <script>
 // ── CONFIG & APIs ────────────────────────────────────────────
 (function(){
   // ── ClickUp
-  const CLICKUP_KEY = 'pk_118012248_W7M8OI26FKQZ7UK6PBPN0TWTQY3LMCO3';
+  const CLICKUP_KEY = 'pk_290558317_N0OX2PUACB3WKA0VJ65QZ3GXTZZDY4E9';
   const LISTS_CFG = {
-    recomendados: { id: '901712990844', label: 'Recomendados' },
-    followup:     { id: '901712990938', label: 'Follow-Up'    },
-    clientes:     { id: '901712990943', label: 'Clientes'     },
+    recomendados: { id: '901712437058', label: 'Recomendados' },
+    followup:     { id: '901712437066', label: 'Follow-Up'    },
+    clientes:     { id: '901712437068', label: 'Clientes'     },
   };
 
   // ── Supabase
@@ -773,6 +837,30 @@ tbody tr:last-child td { border-bottom: none; }
     return null;
   }
 
+  function gcfById(task, id){
+    const f = (task.custom_fields||[]).find(x => x.id === id);
+    if (!f || f.value === null || f.value === undefined) return null;
+    if (f.type === 'drop_down'){ const o = f.type_config?.options?.find(x=>x.orderindex===f.value||x.id===f.value); return o?o.name:null; }
+    if (f.type === 'date' && f.value) return new Date(Number(f.value)).toLocaleDateString('pt-BR');
+    if (f.type === 'number' || f.type === 'currency') return f.value;
+    if (f.type === 'email' || f.type === 'phone') return typeof f.value === 'string' ? f.value : null;
+    if (typeof f.value === 'string' && f.value) return f.value;
+    if (typeof f.value === 'number') return f.value;
+    return null;
+  }
+
+  function allcf(task){
+    return (task.custom_fields||[]).map(f => {
+      let v = null;
+      if (f.type==='drop_down' && f.value!=null){ const o=f.type_config?.options?.find(x=>x.orderindex===f.value||x.id===f.value); v=o?o.name:null; }
+      else if (f.type==='label' && Array.isArray(f.value) && f.value.length) v=f.value.map(x=>x.label||x).join(', ');
+      else if (f.type==='date' && f.value) v=new Date(Number(f.value)).toLocaleDateString('pt-BR');
+      else if ((f.type==='email'||f.type==='phone') && typeof f.value==='string' && f.value) v=f.value;
+      else if (f.value!=null && f.value!=='' && f.value!==undefined) v=String(f.value);
+      return { name: f.name, val: v };
+    }).filter(x => x.val && x.val !== 'null');
+  }
+
   function incomeBucket(v){
     if (v < 15000) return 'Até 15k';
     if (v < 30000) return '15k – 30k';
@@ -804,40 +892,52 @@ tbody tr:last-child td { border-bottom: none; }
   function normTask(task, listKey){
     const income = parseFloat(String(gcf(task,'renda_mensal') || gcf(task,'renda') || 0).replace(/[^\d.,]/g,'').replace(',','.')) || 0;
     const st = nStatus(gcf(task,'status_apolice') || task.status?.status || '', listKey);
-    const renewDate = parseBrDate(gcf(task,'data_fim_vigencia') || gcf(task,'data_renegociacao_contrato'));
+    const renewDate = parseBrDate(gcf(task,'data_fim_vigencia') || gcf(task,'data_renegociacao_contrato') || gcf(task,'datafimvigencia'));
     const birthDate = parseBrDate(gcf(task,'data_nascimento'));
     const ageRaw = parseInt(gcf(task,'idade') || 0);
     const age = ageRaw || (birthDate ? Math.floor((Date.now() - birthDate) / (365.25 * 86400000)) : 0);
-    const depF = (task.custom_fields||[]).find(x => x.id === '85f8f6c4-a0c5-400f-8572-9c4690866690');
-    const children = depF ? (parseFloat(String(depF.value)) || 0) : 0;
+    // filhos por ID específico do ClickUp (campo numérico de dependentes)
+    const filhosF = (task.custom_fields||[]).find(x => x.id === 'c27ca4cd-0f79-4812-9f0b-f83ce46621e2');
+    const children = filhosF ? (parseFloat(String(filhosF.value)) || 0) : 0;
     const premium = Math.max(0, Math.round((income * 0.04) / 50) * 50);
 
     return {
-      id:             task.id,
-      _url:           task.url,
-      _lk:            listKey,
-      _at:            task.date_created ? new Date(Number(task.date_created)) : null,
-      _rawFields:     task.custom_fields || [],
-      name:           gcf(task,'nome') || task.name || '–',
-      profession:     gcf(task,'profissao') || gcf(task,'profissão') || '–',
-      city:           gcf(task,'cidade') || '–',
+      id:               task.id,
+      _url:             task.url,
+      _lk:              listKey,
+      _ll:              LISTS_CFG[listKey].label,
+      _at:              task.date_created ? new Date(Number(task.date_created)) : null,
+      _rawFields:       task.custom_fields || [],
+      _allFields:       allcf(task),
+      name:             gcf(task,'nome') || task.name || '–',
+      profession:       gcf(task,'profissao') || gcf(task,'profissão') || '–',
+      city:             gcf(task,'cidade') || '–',
+      ecivil:           gcf(task,'estado_civil') || '–',
       income,
-      incomeBucket:   incomeBucket(income),
-      status:         st.key,
-      statusLabel:    st.label,
-      statusTone:     st.tone,
-      origin:         LISTS_CFG[listKey].label,
+      incomeBucket:     incomeBucket(income),
+      perfil:           gcf(task,'perfil_renda') || gcf(task,'perfil') || (income>=30000?'Alta Renda':income>=10000?'Média Renda':'Outros'),
+      status:           st.key,
+      statusLabel:      st.label,
+      statusTone:       st.tone,
+      origin:           LISTS_CFG[listKey].label,
       children,
-      dependents:     children,
-      lastContactDays: 0,
-      potential:      income > 30000 ? 80 : 50,
+      dependents:       children,
+      filhos:           String(children),
+      dep:              gcfById(task,'d76977b4-2659-4422-b686-f50d9e5255f0') || String(children),
+      lastContactDays:  0,
+      potential:        income > 30000 ? 80 : 50,
       premium,
       age,
-      email:          gcf(task,'email') || '',
-      phone:          gcf(task,'telefone') || '',
-      policy:         gcf(task,'numero_apolice') || null,
-      renewDate:      renewDate ? renewDate.toISOString().slice(0,10) : null,
-      birthDate:      birthDate ? birthDate.toISOString().slice(0,10) : null,
+      email:            gcf(task,'email') || '–',
+      phone:            gcf(task,'telefone') || '–',
+      policy:           gcf(task,'numero_apolice') || gcf(task,'clientid') || task.id,
+      renewDate:        renewDate ? renewDate.toISOString().slice(0,10) : null,
+      birthDate:        birthDate ? birthDate.toISOString().slice(0,10) : null,
+      primeiraproposta: gcf(task,'data_assinatura_primeira_proposta') || gcf(task,'data_assinatura') || '–',
+      iniciovigencia:   gcf(task,'data_inicio_vigencia') || gcf(task,'data_contrato') || '–',
+      fimvigencia:      gcf(task,'data_fim_vigencia') || gcf(task,'datafimvigencia') || '–',
+      reneg:            gcf(task,'data_renegociacao_contrato') || '–',
+      obs:              gcf(task,'observacoes_importantes_do_cliente') || gcf(task,'observacoes') || '',
     };
   }
 
@@ -890,15 +990,39 @@ tbody tr:last-child td { border-bottom: none; }
         revenue:     newClients.filter(c => c._lk === 'clientes'     && inM(c)).reduce((a,c) => a + c.income, 0),
       };
     }
+    // Atualiza stats ao vivo (exibidos na próxima vez que a tela de login aparecer)
+    const cliOnly = newClients.filter(c => c._lk === 'clientes');
+    const recOnly = newClients.filter(c => c._lk === 'recomendados');
+    const totalPremium = cliOnly.reduce((a,c) => a + c.premium, 0);
+    try {
+      const el1 = document.getElementById('as-clientes');
+      const el2 = document.getElementById('as-premio');
+      const el3 = document.getElementById('as-rec');
+      if (el1) el1.textContent = cliOnly.length;
+      if (el2) el2.textContent = 'R$ ' + (totalPremium/1000).toFixed(0) + 'k';
+      if (el3) el3.textContent = recOnly.length;
+    } catch(e){}
+
     return newClients;
   }
 
   window.loadClickUpData = loadClickUpData;
 
+  // Debug: inspeciona campos de uma task no console
+  window.debugTask = function(taskId) {
+    const t = (window.CRM_DATA?.clients || []).find(x => x.id === taskId);
+    if (!t) { console.warn('Task não encontrada:', taskId); return; }
+    console.group('🔍 DEBUG: ' + t.name + ' (' + taskId + ')');
+    (t._rawFields || []).forEach(f => {
+      console.log('[' + f.type + '] "' + f.name + '" → valor:', f.value, '| options:', f.type_config?.options?.slice(0,3));
+    });
+    console.groupEnd();
+  };
+
   // Dados iniciais vazios — populados pelo loadClickUpData() após o login
   window.CRM_DATA = { clients: [], STATUSES, ORIGINS, PROFS, CITIES, performance, months };
 })();
-
+ 
 </script>
 <script>
 // Main CRM app logic
@@ -995,24 +1119,12 @@ tbody tr:last-child td { border-bottom: none; }
         <div class="header-spacer"></div>
 
         <button class="btn-icon" title="Atualizar dados" id="btn-refresh">${I.refresh}</button>
-        <button class="btn-icon" title="Exportar relatório" id="btn-export">${I.download}</button>
+        <button class="btn-icon" title="Exportar Excel" id="btn-export">${I.download}</button>
         <div style="position:relative">
-          <button class="btn-icon" title="Notificações" id="btn-notif">
+          <button class="btn-icon" title="Notificações" id="btn-notif" style="position:relative">
             ${I.bell}
-            <span class="badge-dot">3</span>
+            <span class="badge-dot" id="notif-badge" style="display:none">0</span>
           </button>
-          <div class="popover" id="notif-pop">
-            <div class="pop-head">
-              <h4>Notificações</h4>
-              <button class="clear" id="notif-clear">Limpar tudo</button>
-            </div>
-            <div class="pop-list">
-              <div class="notif"><div class="notif-ic orange">${I.alert}</div><div><div class="notif-t">4 renegociações este mês</div><div class="notif-d">Apólices vencendo em abril — ação necessária</div></div><div class="notif-time">2 min</div></div>
-              <div class="notif"><div class="notif-ic green">${I.check}</div><div><div class="notif-t">Mariana Almeida assinou a apólice</div><div class="notif-d">APL-482910 · R$ 18.400/ano</div></div><div class="notif-time">1 h</div></div>
-              <div class="notif"><div class="notif-ic blue">${I.star}</div><div><div class="notif-t">Novo lead recomendado</div><div class="notif-d">Rafael Carvalho — indicado por Beatriz Ribeiro</div></div><div class="notif-time">3 h</div></div>
-              <div class="notif"><div class="notif-ic red">${I.clock}</div><div><div class="notif-t">Follow-up atrasado</div><div class="notif-d">Thiago Ferreira — 14 dias sem contato</div></div><div class="notif-time">ontem</div></div>
-            </div>
-          </div>
         </div>
         <button class="btn-icon" title="Alternar tema" id="btn-theme">${state.theme==='dark'?I.sun:I.moon}</button>
 
@@ -1073,15 +1185,13 @@ tbody tr:last-child td { border-bottom: none; }
     });
     $('#btn-notif').addEventListener('click', (e)=>{
       e.stopPropagation();
-      const pop = $('#notif-pop');
-      pop.classList.toggle('open');
+      document.getElementById('notif-panel').classList.toggle('open');
     });
-    $('#notif-clear').addEventListener('click', ()=>{
-      $('#notif-pop .pop-list').innerHTML = `<div class="empty"><h4>Tudo limpo</h4><div>Sem notificações pendentes</div></div>`;
-      $('#app .badge-dot').style.display = 'none';
-    });
-    document.addEventListener('click', ()=>{
-      $('#notif-pop')?.classList.remove('open');
+    $('#btn-export').addEventListener('click', () => exportToExcel());
+    document.addEventListener('click', (e)=>{
+      if (!e.target.closest('#btn-notif') && !e.target.closest('#notif-panel')) {
+        document.getElementById('notif-panel')?.classList.remove('open');
+      }
     });
   }
 
@@ -1389,10 +1499,10 @@ tbody tr:last-child td { border-bottom: none; }
         ${renderStatusChips(all)}
 
         <div class="kpi-grid" style="margin-top:16px">
-          ${kpiCard({ label:'Base total', value: k.total.toLocaleString('pt-BR'), icon: I.users, tone:'primary', delta:'+12', deltaSub:'novos este mês' })}
-          ${kpiCard({ label:'Renda média da base', value: money(k.avgIncome), icon: I.wallet, tone:'green', delta:'+3,8%' })}
-          ${kpiCard({ label:'Prêmio anual estimado', value: money(k.totalPremium), icon: I.trend, tone:'purple', delta:'+8,2%' })}
-          ${kpiCard({ label:'Clientes ativos', value: k.activos, unit: ` / ${k.total}`, icon: I.target, tone:'orange', delta: `${Math.round(k.activos/k.total*100)}%`, deltaSub:'da base total' })}
+          ${kpiCard({ label:'Clientes na carteira', value: clients.filter(c=>c._lk==='clientes').length.toLocaleString('pt-BR'), icon: I.users, tone:'green', deltaSub:'lista Clientes · ClickUp' })}
+          ${kpiCard({ label:'Recomendados', value: clients.filter(c=>c._lk==='recomendados').length.toLocaleString('pt-BR'), icon: I.star, tone:'purple', deltaSub:'lista Recomendados' })}
+          ${kpiCard({ label:'Renda média (carteira)', value: money(k.avgIncome), icon: I.wallet, tone:'primary', delta:'+3,8%' })}
+          ${kpiCard({ label:'Prêmio anual estimado', value: money(k.totalPremium), icon: I.trend, tone:'orange', delta:'+8,2%' })}
         </div>
 
         <div class="chart-grid">
@@ -1636,9 +1746,9 @@ tbody tr:last-child td { border-bottom: none; }
         <button class="btn-icon sp-close" id="sp-close">${I.x}</button>
       </div>
       <div class="sp-tabs">
-        ${['dados','apolice','status','observacoes'].map(t=>`
+        ${['dados','apolice','campos','obs'].map(t=>`
           <button class="sp-tab ${state.sideTab===t?'active':''}" data-sp-tab="${t}">${
-            t==='dados'?'Dados':t==='apolice'?'Apólice':t==='status'?'Status':'Observações'
+            {dados:'📋 Dados',apolice:'📄 Apólice',campos:'⚙️ Campos',obs:'📝 Obs.'}[t]
           }</button>
         `).join('')}
       </div>
@@ -1647,12 +1757,14 @@ tbody tr:last-child td { border-bottom: none; }
           <div class="field-group">
             <h4>Informações pessoais</h4>
             <div class="field-grid">
-              <div class="field-item"><div class="l">Nome completo</div><div class="v">${c.name}</div></div>
-              <div class="field-item"><div class="l">Idade</div><div class="v">${c.age} anos</div></div>
+              <div class="field-item full"><div class="l">Nome completo</div><div class="v">${c.name}</div></div>
+              <div class="field-item"><div class="l">Idade</div><div class="v">${c.age ? c.age+' anos' : '–'}</div></div>
+              <div class="field-item"><div class="l">Nascimento</div><div class="v mono">${c.birthDate || '–'}</div></div>
+              <div class="field-item"><div class="l">Estado civil</div><div class="v">${c.ecivil || '–'}</div></div>
               <div class="field-item"><div class="l">Profissão</div><div class="v">${c.profession}</div></div>
-              <div class="field-item"><div class="l">Dependentes</div><div class="v">${c.dependents} (${c.children} filhos)</div></div>
-              <div class="field-item"><div class="l">Data de nascimento</div><div class="v mono">${c.birthDate}</div></div>
+              <div class="field-item"><div class="l">Qtd. filhos</div><div class="v">${c.children || '0'}</div></div>
               <div class="field-item"><div class="l">Cidade</div><div class="v">${c.city}</div></div>
+              <div class="field-item"><div class="l">Perfil</div><div class="v">${c.perfil || c.incomeBucket}</div></div>
             </div>
           </div>
           <div class="field-group">
@@ -1666,64 +1778,62 @@ tbody tr:last-child td { border-bottom: none; }
             <h4>Financeiro</h4>
             <div class="field-grid">
               <div class="field-item"><div class="l">Renda mensal</div><div class="v mono">${money(c.income)}</div></div>
-              <div class="field-item"><div class="l">Faixa de renda</div><div class="v">${c.incomeBucket}</div></div>
-              <div class="field-item"><div class="l">Prêmio anual</div><div class="v mono">${money(c.premium)}</div></div>
-              <div class="field-item"><div class="l">Potencial</div><div class="v mono">${c.potential}%</div></div>
+              <div class="field-item"><div class="l">Faixa</div><div class="v">${c.incomeBucket}</div></div>
+              <div class="field-item"><div class="l">Prêmio anual est.</div><div class="v mono">${money(c.premium)}</div></div>
+              <div class="field-item"><div class="l">Lista ClickUp</div><div class="v">${c._ll}</div></div>
             </div>
           </div>
         ` : state.sideTab === 'apolice' ? `
           <div class="field-group">
-            <h4>Dados da apólice</h4>
+            <h4>Apólice & Status</h4>
             <div class="field-grid">
-              <div class="field-item"><div class="l">Número</div><div class="v mono">${c.policy || '—'}</div></div>
-              <div class="field-item"><div class="l">Status</div><div class="v"><span class="badge ${c.statusTone}">${c.statusLabel}</span></div></div>
+              <div class="field-item full"><div class="l">Status</div><div class="v"><span class="badge ${c.statusTone}">${c.statusLabel}</span></div></div>
+              <div class="field-item full"><div class="l">Client ID / Nº Apólice</div><div class="v mono">${c.policy || '–'}</div></div>
+              <div class="field-item full"><div class="l">1ª Proposta</div><div class="v mono">${c.primeiraproposta || '–'}</div></div>
+              <div class="field-item full"><div class="l">Início de vigência</div><div class="v mono">${c.iniciovigencia || '–'}</div></div>
+              <div class="field-item full"><div class="l">Fim de vigência</div><div class="v mono">${c.fimvigencia || c.renewDate || '–'}</div></div>
+              <div class="field-item full"><div class="l">Renegociação</div><div class="v mono">${c.reneg || '–'}</div></div>
+            </div>
+          </div>
+          <div class="field-group">
+            <h4>Valores</h4>
+            <div class="field-grid">
+              <div class="field-item"><div class="l">Renda mensal</div><div class="v mono">${money(c.income)}</div></div>
               <div class="field-item"><div class="l">Prêmio anual</div><div class="v mono">${money(c.premium)}</div></div>
-              <div class="field-item"><div class="l">Renovação</div><div class="v mono">${c.renewDate}</div></div>
             </div>
           </div>
-          <div class="field-group">
-            <h4>Datas importantes</h4>
-            <div class="field-grid">
-              <div class="field-item"><div class="l">Aniversário</div><div class="v mono">${c.birthDate.slice(5)}</div></div>
-              <div class="field-item"><div class="l">Último contato</div><div class="v mono">${c.lastContactDays} dias atrás</div></div>
-            </div>
-          </div>
-        ` : state.sideTab === 'status' ? `
-          <div class="field-group">
-            <h4>Status atual</h4>
-            <div class="field-grid">
-              <div class="field-item full"><div class="l">Etapa do funil</div><div class="v"><span class="badge ${c.statusTone}">${c.statusLabel}</span></div></div>
-              <div class="field-item"><div class="l">Origem</div><div class="v">${c.origin}</div></div>
-              <div class="field-item"><div class="l">Potencial</div><div class="v mono">${c.potential}%</div></div>
-            </div>
-          </div>
+        ` : state.sideTab === 'campos' ? `
           <div class="field-group">
             <h4>Todos os campos do ClickUp</h4>
-            <div class="field-grid">
-              <div class="field-item"><div class="l">ID interno</div><div class="v mono">${c.id}</div></div>
-              <div class="field-item"><div class="l">Task ID</div><div class="v mono">CU-${c.id.slice(1)}X${c.age}</div></div>
-              <div class="field-item full"><div class="l">Tags</div><div class="v">${['vip','recorrente','alto-ticket'].slice(0, 1+Math.floor(c.potential/40)).map(t=>`<span class="tag" style="margin-right:4px">${t}</span>`).join('')}</div></div>
-            </div>
+            ${(c._allFields || []).length === 0
+              ? '<div style="color:var(--text-3);font-size:12px;padding:8px 0">Nenhum campo preenchido.</div>'
+              : (c._allFields || []).map(f => `
+                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                  <span style="color:var(--text-3)">${f.name}</span>
+                  <span style="font-weight:500;text-align:right;max-width:55%">${f.val}</span>
+                </div>
+              `).join('')}
+            <div style="margin-top:10px;font-size:11px;color:var(--text-4)">Task ID: ${c.id}</div>
           </div>
         ` : `
           <div class="field-group">
-            <h4>Notas do cliente</h4>
-            <div class="field-item full" style="min-height:120px">
-              <div class="l">Observações (${c.lastContactDays}d atrás)</div>
-              <div class="v" style="font-weight:400;line-height:1.6;margin-top:6px">
-                Cliente demonstrou interesse em aumentar cobertura após mudança de cargo. Aguardando retorno sobre documentação do último exame médico. Agendar reunião presencial em São Paulo.
-              </div>
+            <h4>Observações</h4>
+            <div style="background:var(--surface-2);border-left:3px solid var(--primary);border-radius:0 8px 8px 0;padding:12px 14px;font-size:13px;color:var(--text-2);line-height:1.6;min-height:80px;">
+              ${c.obs || '<span style="color:var(--text-4);font-style:italic">Sem observações cadastradas.</span>'}
             </div>
           </div>
-          <div class="field-group">
-            <h4>Histórico</h4>
-            <div class="field-item full"><div class="l">Reunião inicial</div><div class="v" style="font-weight:400">Apresentação de produtos Life & Investimentos</div></div>
+          <div class="field-group" style="margin-top:16px">
+            <h4>Origem</h4>
+            <div class="field-grid">
+              <div class="field-item"><div class="l">Lista ClickUp</div><div class="v">${c._ll}</div></div>
+              <div class="field-item"><div class="l">Captado em</div><div class="v mono">${c._at ? c._at.toLocaleDateString('pt-BR') : '–'}</div></div>
+            </div>
           </div>
         `}
       </div>
       <div class="sp-foot">
-        <button class="btn btn-ghost">Voltar</button>
-        <button class="btn btn-primary">${I.external} Abrir no ClickUp</button>
+        <button class="btn btn-ghost" onclick="closeSidePanel()">Fechar</button>
+        <button class="btn btn-primary" onclick="if('${c._url}'!=='undefined')window.open('${c._url}','_blank')">${I.external} Abrir no ClickUp</button>
       </div>
     `;
     $('#side-overlay').classList.add('open');
@@ -1801,6 +1911,64 @@ tbody tr:last-child td { border-bottom: none; }
     return getFiltered();
   }
 
+  // ---- Export Excel (usa XLSX.js)
+  function exportToExcel() {
+    const list = getFilteredForTab();
+    if (!list.length) { alert('Sem dados para exportar.'); return; }
+    if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX não carregada.'); return; }
+    const rows = list.map(c => ({
+      Nome: c.name, Profissão: c.profession, Cidade: c.city,
+      'Renda Mensal': c.income, 'Faixa de Renda': c.incomeBucket,
+      Status: c.statusLabel, Lista: c._ll,
+      Email: c.email, Telefone: c.phone,
+      Nascimento: c.birthDate || '',
+      'Prêmio Anual Est.': c.premium,
+      'Fim Vigência': c.fimvigencia || c.renewDate || '',
+      Renegociação: c.reneg || '',
+      Observações: c.obs || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Carteira');
+    XLSX.writeFile(wb, 'lifeplan-crm-' + new Date().toISOString().slice(0,10) + '.xlsx');
+  }
+
+  // ---- Notificações reais (baseadas nos dados do ClickUp)
+  function buildNotifications() {
+    const notifs = [];
+    const hoje = new Date();
+    const mesAtual = hoje.getMonth();
+    const anoAtual = hoje.getFullYear();
+    const reneg = clients.filter(c => {
+      const d = c.renewDate ? new Date(c.renewDate) : null;
+      return d && d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+    });
+    if (reneg.length) notifs.push({ icon: '⚠️', title: reneg.length + ' renegociação(ões) este mês', sub: reneg.slice(0,2).map(c=>c.name).join(', ') + (reneg.length>2?'…':'') });
+    const novosRec = clients.filter(c => c._lk === 'recomendados' && c._at && (hoje - c._at) < 7*86400000);
+    if (novosRec.length) notifs.push({ icon: '⭐', title: novosRec.length + ' novo(s) recomendado(s)', sub: novosRec.slice(0,1).map(c=>c.name).join(', ') });
+    const fupCount = clients.filter(c => c._lk === 'followup').length;
+    if (fupCount) notifs.push({ icon: '🔄', title: fupCount + ' em follow-up pendente', sub: 'Verificar abordagens e próximos passos' });
+
+    const badge = document.getElementById('notif-badge');
+    const listEl = document.getElementById('notif-list');
+    if (badge) { badge.textContent = notifs.length; badge.style.display = notifs.length ? 'flex' : 'none'; }
+    if (listEl) {
+      listEl.innerHTML = notifs.length ? notifs.map(n => `
+        <div class="notif-row">
+          <div class="notif-row-ic" style="background:var(--orange-soft)">${n.icon}</div>
+          <div><div class="notif-row-t">${n.title}</div><div class="notif-row-s">${n.sub}</div></div>
+        </div>`).join('') : '<div class="notif-empty">Nenhuma notificação.</div>';
+    }
+    if (reneg.length) {
+      const popup = document.getElementById('reneg-popup');
+      const body = document.getElementById('reneg-popup-body');
+      if (body) body.innerHTML = reneg.slice(0,4).map(c=>
+        `<div class="reneg-popup-item">${c.name} · ${c.renewDate}</div>`
+      ).join('') + (reneg.length>4 ? `<div class="reneg-popup-item" style="color:var(--text-4)">+${reneg.length-4} outros</div>` : '');
+      if (popup) setTimeout(() => popup.classList.add('show'), 2500);
+    }
+  }
+
   // ---- Auth (Supabase)
   function initAuth() {
     document.getElementById('auth-form').addEventListener('submit', async (e) => {
@@ -1815,6 +1983,8 @@ tbody tr:last-child td { border-bottom: none; }
       try {
         const { data, error } = await window.sb.auth.signInWithPassword({ email: em, password: pw });
         if (error) throw error;
+        const manter = document.getElementById('auth-remember')?.checked !== false;
+        localStorage.setItem('crm_manter', manter ? 'true' : 'false');
         const { data: profile } = await window.sb.from('crm_users').select('nome,role').eq('id', data.user.id).single();
         state.currentUser = {
           id:    data.user.id,
@@ -1849,12 +2019,14 @@ tbody tr:last-child td { border-bottom: none; }
     }
     renderHeader();
     renderPage();
-    setTimeout(openPopup, 1200);
+    buildNotifications();
   }
 
   // ---- Init
   document.documentElement.setAttribute('data-theme', state.theme);
   (async () => {
+    const manter = localStorage.getItem('crm_manter') !== 'false';
+    if (!manter) { await window.sb.auth.signOut(); initAuth(); return; }
     const { data: { session } } = await window.sb.auth.getSession();
     if (session) {
       const { data: profile } = await window.sb.from('crm_users').select('nome,role').eq('id', session.user.id).single();
@@ -1873,29 +2045,33 @@ tbody tr:last-child td { border-bottom: none; }
   $('#side-overlay').addEventListener('click', closeSidePanel);
   $('#popup-close').addEventListener('click', closePopup);
   $('#popup-goto').addEventListener('click', () => {
-    state.tab = 'clientes';
-    state.filters.status = 'renegociar';
+    state.tab = 'clientes'; state.filters.status = 'renegociar';
+    renderHeader(); renderPage(); closePopup();
+  });
+  document.getElementById('notif-clear')?.addEventListener('click', () => {
+    document.getElementById('notif-list').innerHTML = '<div class="notif-empty">Notificações limpas.</div>';
+    const b = document.getElementById('notif-badge'); if (b) b.style.display = 'none';
+  });
+  document.getElementById('reneg-close')?.addEventListener('click', () => {
+    document.getElementById('reneg-popup').classList.remove('show');
+  });
+  document.getElementById('reneg-goto')?.addEventListener('click', () => {
+    state.tab = 'clientes'; state.filters.status = 'renegociar';
     renderHeader(); renderPage();
-    closePopup();
+    document.getElementById('reneg-popup').classList.remove('show');
   });
-
-  // Keyboard
-  document.addEventListener('keydown', (e)=>{
-    if (e.key === 'Escape') { closeSidePanel(); closePopup(); }
-  });
-
-  // Add spin animation
-  const st = document.createElement('style');
-  st.textContent = `@keyframes spin { from { transform: rotate(0) } to { transform: rotate(360deg) } }`;
-  document.head.appendChild(st);
-})();
-
-</script>
-<script>
-  // popup later button
-  document.getElementById('popup-later')?.addEventListener('click', ()=>{
+  document.getElementById('popup-later')?.addEventListener('click', () => {
     document.getElementById('popup').classList.remove('open');
   });
+
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') {
+      closeSidePanel(); closePopup();
+      document.getElementById('reneg-popup')?.classList.remove('show');
+    }
+  });
+})();
 </script>
 </body>
 </html>
+
